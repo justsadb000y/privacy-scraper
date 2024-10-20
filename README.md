@@ -6,7 +6,6 @@
 
 ```
 pip install -r requirements.txt
-
 ```
 
 2. Crie um arquivo na raiz chamado .env com a seguinte arvore:
