@@ -85,7 +85,7 @@ class MediaDownloader:
         try:
             response = self.scraper.get(url, headers=headers, stream=True)
             if response.status_code == 200:
-                with open(filename, 'wb') as f:
+                with open(filename, 'wb', encoding='utf-8') as f:
                     for chunk in response.iter_content(chunk_size=8192):
                         if chunk:
                             f.write(chunk)
@@ -121,7 +121,7 @@ class MediaDownloader:
     def process_m3u8(self, m3u8_url, base_path):
         m3u8_filename = os.path.join(base_path, "playlist.m3u8")
         if self.download_file(m3u8_url, m3u8_filename):
-            with open(m3u8_filename, 'r') as f:
+            with open(m3u8_filename, 'r', encoding='utf-8') as f:
                 content = f.read()
 
             lines = content.split('\n')
@@ -135,7 +135,7 @@ class MediaDownloader:
                 else:
                     modified_content.append(line)
 
-            with open(m3u8_filename, 'w') as f:
+            with open(m3u8_filename, 'w', encoding='utf-8') as f:
                 f.write('\n'.join(modified_content))
 
             return m3u8_filename
@@ -220,7 +220,7 @@ def main():
                                             main_m3u8_filename = os.path.join(base_path, "main.m3u8")
 
                                             if media_downloader.download_file(file_url, main_m3u8_filename):
-                                                with open(main_m3u8_filename, 'r') as f:
+                                                with open(main_m3u8_filename, 'r', encoding='utf-8') as f:
                                                     main_m3u8_content = f.read()
 
                                                 best_quality_url = media_downloader.get_best_quality_m3u8(file_url, main_m3u8_content)
