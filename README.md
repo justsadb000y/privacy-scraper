@@ -1,5 +1,7 @@
 # Privacy Scraper
 
+Apenas baixa conteúdo de perfis no qual você ja é assinante
+
 ## Como utilizar:
 
 1. Instale os requerimentos utilizando o comando
