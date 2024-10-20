@@ -11,7 +11,7 @@ pip install -r requirements.txt
 
 2. Crie um arquivo na raiz chamado .env com a seguinte arvore:
 ```
-EMAIL=exemplp@gmail.com
+EMAIL=exemplo@gmail.com
 PASSWORD=exemplo123
 ```
 
@@ -20,6 +20,6 @@ PASSWORD=exemplo123
 python privacy_scraper.py
 ```
 
-2. Quando aparecer a lista de perfis, aperta o numero do perfil escolhido ou 0 para varrer todos os perfis.
+4. Quando aparecer a lista de perfis, aperta o numero do perfil escolhido ou 0 para varrer todos os perfis.
 
-3. Depois selecione o tipo de midia, aperte o numero de mídia para download (1 - Fotos, 2 - Vídeos, 3 - Ambos).
+5. Depois selecione o tipo de midia, aperte o numero de mídia para download (1 - Fotos, 2 - Vídeos, 3 - Ambos).
