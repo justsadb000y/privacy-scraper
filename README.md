@@ -26,6 +26,7 @@ python privacy_scraper.py
 5. Depois selecione o tipo de midia, aperte o numero de mídia para download (1 - Fotos, 2 - Vídeos, 3 - Ambos).
 
 ## FFMPeg
+(https://github.com/BtbN/FFmpeg-Builds/releases)
 
 1. Extraia o arquivo ZIP em uma pasta (ex: C:\ffmpeg\bin)
 
