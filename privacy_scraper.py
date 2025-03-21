@@ -16,11 +16,22 @@ load_dotenv()
 
 class PrivacyScraper:
     def __init__(self):
-        self.scraper = cloudscraper.create_scraper()
+        self.scraper = cloudscraper.create_scraper(
+            browser={
+                'browser': 'chrome',  # Simulando navegador real
+                'platform': 'windows',
+                'desktop': True
+            }
+        )
         self.email = os.getenv('EMAIL')
         self.password = os.getenv('PASSWORD')
         self.token_v1 = None
         self.token_v2 = None
+        self.headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36',
+            'Accept': '*/*',
+            'Connection': 'keep-alive',
+        }
 
     def login(self):
         login_url = "https://service.privacy.com.br/auth/login"
@@ -31,7 +42,7 @@ class PrivacyScraper:
             "CanReceiveEmail": True
         }
 
-        response = self.scraper.post(login_url, json=login_data)
+        response = self.scraper.post(login_url, json=login_data, headers=self.headers)
 
         if response.status_code == 200:
             tokens = response.json()
@@ -39,7 +50,7 @@ class PrivacyScraper:
             self.token_v2 = tokens.get("token")
 
             second_url = f"https://privacy.com.br/strangler/Authorize?TokenV1={self.token_v1}&TokenV2={self.token_v2}"
-            response = self.scraper.get(second_url)
+            response = self.scraper.get(second_url, headers=self.headers)
 
             if response.status_code == 200:
                 return True
@@ -51,6 +62,9 @@ class PrivacyScraper:
 
     def get_profiles(self):
         headers_profile = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36',
+            'Accept': '*/*',
+            'Connection': 'keep-alive',
             "authorization": f"Bearer {self.token_v2}",
         }
         profile_url = "https://service.privacy.com.br/profile/UserFollowing?page=0&limit=30&nickName="
@@ -66,6 +80,7 @@ class PrivacyScraper:
     def get_total_media_count(self, profile_name):
         url = f"https://privacy.com.br/profile/{profile_name}/Mosaico"
         response = self.scraper.get(url)
+        print(f"Media count: {response.status_code}")
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, 'html.parser')
             total_match = soup.find('a', class_='filter-button selected')
@@ -83,8 +98,9 @@ class MediaDownloader:
     def __init__(self, scraper):
         self.scraper = scraper
 
-    def download_file(self, url, filename, pbar=None):
-        headers = {"referer": "https://privacy.com.br/"}
+    def download_file(self, url, filename, tokenContent, pbar=None):
+        uri = url.split("hls/", 1)[-1]
+        headers = {"referer": "https://privacy.com.br/", "Content": tokenContent, 'X-Content-Uri': uri }
         try:
             response = self.scraper.get(url, headers=headers, stream=True)
             if response.status_code == 200:
@@ -96,7 +112,7 @@ class MediaDownloader:
                         pbar.update(1)
                 return True
             else:
-                print(f"Falha ao baixar {filename}: Status {response.status_code}")
+                print(f"Falha ao baixar {url}: Status {response.status_code}. Uri {tokenContent}")
                 return False
         except Exception as e:
             print(f"Erro ao baixar o arquivo: {e}")
@@ -120,9 +136,9 @@ class MediaDownloader:
 
         return best_quality_url
 
-    def process_m3u8(self, m3u8_url, base_path):
+    def process_m3u8(self, m3u8_url, base_path, tokenContent):
         m3u8_filename = os.path.join(base_path, "playlist.m3u8")
-        if self.download_file(m3u8_url, m3u8_filename):
+        if self.download_file(m3u8_url, m3u8_filename, tokenContent):
             with open(m3u8_filename, 'r', encoding='utf-8') as f:
                 content = f.read()
 
@@ -137,13 +153,13 @@ class MediaDownloader:
                         new_key_name = f"{original_key_name}.ts"
                         key_path = os.path.join(base_path, new_key_name)
                         
-                        if self.download_file(key_url, key_path):
+                        if self.download_file(key_url, key_path, tokenContent):
                             new_line = line.replace(uri_match.group(0), f'URI="{new_key_name}"')
                             modified_content.append(new_line)
                 elif line.strip() and not line.startswith('#'):
                     segment_url = urllib.parse.urljoin(m3u8_url, line.strip())
                     segment_filename = os.path.join(base_path, os.path.basename(segment_url))
-                    if self.download_file(segment_url, segment_filename):
+                    if self.download_file(segment_url, segment_filename, tokenContent):
                         modified_content.append(os.path.basename(segment_filename))
                     else:
                         modified_content.append(line)
@@ -242,20 +258,36 @@ def main():
 
                                         if file_type == "image" and media_type in ["1", "3"]:
                                             filename = f"./{selected_profile_name}/fotos/{file['mediaId']}.jpg"
-                                            if media_downloader.download_file(file_url, filename, pbar):
+                                            if media_downloader.download_file(file_url, filename, '', pbar):
                                                 downloaded_photos += 1
                                         elif file_type == "video" and media_type in ["2", "3"]:
                                             base_path = f"./{selected_profile_name}/videos/{file['mediaId']}_temp"
                                             os.makedirs(base_path, exist_ok=True)
                                             main_m3u8_filename = os.path.join(base_path, "main.m3u8")
+                                            media_token_header = {
+                                                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36',
+                                                'Accept': '*/*',
+                                                'Connection': 'keep-alive',
+                                                "authorization": f"Bearer {privacy_scraper.token_v2}",
+                                            }
+                                            fileId = file_url.split("/hls/")[0].split("/")[-1]
+                                            payload = {
+                                                'exp': 3600,
+                                                'file_id': fileId
+                                            }
+                                            token_url = "https://service.privacy.com.br/media/video/token"
 
-                                            if media_downloader.download_file(file_url, main_m3u8_filename):
+                                            response = privacy_scraper.scraper.post(token_url, json=payload, headers=media_token_header)
+                                            responseContent = response.json()
+                                            content = responseContent.get('content')
+
+                                            if media_downloader.download_file(file_url, main_m3u8_filename, content):
                                                 with open(main_m3u8_filename, 'r', encoding='utf-8') as f:
                                                     main_m3u8_content = f.read()
 
                                                 best_quality_url = media_downloader.get_best_quality_m3u8(file_url, main_m3u8_content)
                                                 if best_quality_url:
-                                                    best_m3u8_filename = media_downloader.process_m3u8(best_quality_url, base_path)
+                                                    best_m3u8_filename = media_downloader.process_m3u8(best_quality_url, base_path, content)
                                                     
                                                     if best_m3u8_filename and os.path.exists(best_m3u8_filename):
                                                         output_filename = f"./{selected_profile_name}/videos/{file['mediaId']}.mp4"
