@@ -1,4 +1,4 @@
-## [English Version](#-privacy-scraper-english)
+## [English Version](https://github.com/justsadb000y/privacy-scraper/blob/main/README-en.md)
 
 # 🔒 Privacy Scraper
 
