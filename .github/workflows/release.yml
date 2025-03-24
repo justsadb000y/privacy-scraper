@@ -30,7 +30,7 @@ jobs:
       - name: Prepare files
         run: |
           mkdir release
-          Copy-Item dist\seu_script.exe release\
+          Copy-Item dist\privacy_scraper.exe release\
           if (Test-Path ".env") { Copy-Item .env release\ }
 
       - name: Zip files
