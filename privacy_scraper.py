@@ -4,6 +4,7 @@ import time
 import ffmpeg
 import re
 import urllib.parse
+import chardet
 import shutil
 from dotenv import load_dotenv
 from bs4 import BeautifulSoup
@@ -361,7 +362,12 @@ def download_and_process_video(privacy_scraper, media_downloader, profile_name, 
     content = response.json().get('content')
 
     if media_downloader.download_file(file["url"], main_m3u8_filename, content):
-        with open(main_m3u8_filename, 'r', encoding='utf-8') as f:
+        with open(main_m3u8_filename, 'rb') as f:
+            raw_data = f.read()
+
+        encoding = chardet.detect(raw_data)['encoding']
+
+        with open(main_m3u8_filename, 'r', encoding=encoding, errors='replace') as f:
             main_m3u8_content = f.read()
 
         best_quality_url = media_downloader.get_best_quality_m3u8(file["url"], main_m3u8_content)
