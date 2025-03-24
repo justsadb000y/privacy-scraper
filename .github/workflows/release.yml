@@ -25,12 +25,12 @@ jobs:
 
       - name: Build executable with PyInstaller
         run: |
-          pyinstaller --onefile privacy_scraper.py
+          pyinstaller privacy_scraper.py
 
       - name: Prepare files
         run: |
           mkdir release
-          Copy-Item dist\privacy_scraper.exe release\
+          Copy-Item dist\* release\ -Recurse -Force
           if (Test-Path ".env") { Copy-Item .env release\ }
 
       - name: Zip files
