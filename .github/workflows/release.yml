@@ -31,7 +31,9 @@ jobs:
         run: |
           mkdir release
           Copy-Item dist\* release\ -Recurse -Force
-          if (Test-Path ".env") { Copy-Item .env release\privacy_scrapper\ }
+          if (Test-Path ".env") { 
+            Copy-Item .env release\privacy_scraper\ -Force
+          }
 
       - name: Zip files
         run: Compress-Archive -Path release\* -DestinationPath privacy_scraper_windows.zip
