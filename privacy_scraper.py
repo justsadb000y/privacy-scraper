@@ -81,7 +81,7 @@ class PrivacyScraper:
 
     def get_total_media_count(self, profile_name):
         headers_profile = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
             'Accept': '*/*',
             'Connection': 'keep-alive',
             "authorization": f"Bearer {self.token_v2}",
@@ -95,9 +95,12 @@ class PrivacyScraper:
             photos_match = soup.find('a', href=f"/profile/{profile_name}/Fotos")
             videos_match = soup.find('a', href=f"/profile/{profile_name}/Videos")
 
-            total = int(total_match.text.split()[0]) if total_match else 0
-            photos = int(photos_match.text.split()[0]) if photos_match else 0
-            videos = int(videos_match.text.split()[0]) if videos_match else 0
+            def parse_number(text):
+                return int(text.split()[0].replace('.', '')) if text else 0
+
+            total = parse_number(total_match.text if total_match else None)
+            photos = parse_number(photos_match.text if photos_match else None)
+            videos = parse_number(videos_match.text if videos_match else None)
 
             return total, photos, videos
         else:
