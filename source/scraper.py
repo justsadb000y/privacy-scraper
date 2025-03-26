@@ -1,3 +1,5 @@
+import base64
+import re
 import os
 import platform
 import json
@@ -9,7 +11,32 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+def strip_edits_from_image_url(image_url):
+    match = re.search(r"https:\/\/[^\/]+\/([^\/\?]+)", image_url)
+    if not match:
+        return image_url
+
+    token = match.group(1)
+
+    padding = '=' * ((4 - len(token) % 4) % 4)
+    token_bytes = base64.urlsafe_b64decode(token + padding)
+    token_json = json.loads(token_bytes)
+
+    token_json['edits'] = {}
+
+    cleaned_token = base64.urlsafe_b64encode(
+        json.dumps(token_json).encode()
+    ).decode().rstrip("=")
+
+    new_url = image_url.replace(token, cleaned_token)
+
+    return new_url
+
 def get_embedded_chromium_path():
+    playwright_path = os.path.expanduser("~/.cache/ms-playwright") if os.name != 'nt' else os.path.join(os.environ['USERPROFILE'], 'AppData', 'Local', 'ms-playwright')
+    if os.path.exists(playwright_path):
+        return
+
     base = os.path.dirname(os.path.abspath(__file__))
     browser_root = os.path.join(base, "..", "playwright-browsers")
 
@@ -87,7 +114,7 @@ class PrivacyScraper:
             self.authorize_tokens()
             return True
         else:
-            print("Erro no login: tokens ausentes.")
+            print(f"Erro no login: tokens ausentes. {result}")
             self.browser.close()
             self.playwright.stop()
             return False
@@ -142,11 +169,11 @@ class PrivacyScraper:
         return json.loads(result)
 
     def download_image(self, url, filename):
-        uri = url.split("hls/", 1)[-1]
-        headers = {"referer": "https://privacy.com.br/", 'X-Content-Uri': uri }
+        headers = {"referer": "https://privacy.com.br/" }
+        clean_url = strip_edits_from_image_url(url)
 
         try:
-            response = self.scraper.get(url, headers=headers, stream=True)
+            response = self.scraper.get(clean_url, headers=headers, stream=True)
             if response.status_code == 200:
                 with open(filename, 'wb') as f:
                     for chunk in response.iter_content(1024):
