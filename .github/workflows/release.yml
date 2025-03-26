@@ -25,14 +25,31 @@ jobs:
 
       - name: Build executable with PyInstaller
         run: |
-          pyinstaller privacy_scraper.py
+          pyinstaller --name=privacy_scraper main.py
+
+      - name: Install Playwright browsers
+        run: |
+          python -m playwright install chromium
 
       - name: Prepare files
+        shell: pwsh
         run: |
           mkdir release
           Copy-Item dist\* release\ -Recurse -Force
+          
           if (Test-Path ".env") { 
             Copy-Item .env release\privacy_scraper\ -Force
+          }
+
+          $sourceChromium = "$env:USERPROFILE\AppData\Local\ms-playwright"
+          $internalPath = "release\privacy_scraper\_internal\playwright-browsers"
+
+          if (Test-Path $sourceChromium) {
+            New-Item -ItemType Directory -Path $internalPath -Force
+            Copy-Item "$sourceChromium\*" $internalPath -Recurse -Force
+          } else {
+            Write-Error "Chromium not found in expected path: $sourceChromium"
+            exit 1
           }
 
       - name: Zip files
