@@ -75,7 +75,7 @@ WORKERS=5
 Execute the main script:
 
 ```bash
-python privacy_scraper.py
+python main.py
 ```
 
 ---
