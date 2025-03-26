@@ -167,9 +167,17 @@ def process_posts(scraper, media_downloader, selected_profile_name, media_type):
     os.makedirs(f"{DOWNLOAD_DIR}/{selected_profile_name}/videos", exist_ok=True)
 
     skip = 0
-    processed = 0
+    downloaded_count = 0
 
-    with tqdm(total=total, desc=f"Baixando mídias de {selected_profile_name}", unit="mídia") as pbar:
+    progress_total = {
+        "1": total_photos,
+        "2": total_videos,
+        "3": total
+    }.get(media_type, total)
+
+    skip = 0
+
+    with tqdm(total=progress_total, desc=f"Baixando mídias de {selected_profile_name}", unit="mídia") as pbar:
         while True:
             posts = scraper.get_posts(selected_profile_name, skip=skip)
             if not posts.get("mosaicItems"):
@@ -185,6 +193,8 @@ def process_posts(scraper, media_downloader, selected_profile_name, media_type):
                             filename = f"{DOWNLOAD_DIR}/{selected_profile_name}/fotos/{file['mediaId']}.jpg"
                             if not os.path.exists(filename):
                                 scraper.download_image(file_url, filename)
+                                downloaded_count += 1
+                            pbar.update(1)
 
                         elif file_type == "video" and media_type in ["2", "3"]:
                             output_filename = f"{DOWNLOAD_DIR}/{selected_profile_name}/videos/{file['mediaId']}.mp4"
@@ -215,12 +225,15 @@ def process_posts(scraper, media_downloader, selected_profile_name, media_type):
                                     token_content = json.loads(token_response).get("content")
                                     if token_content:
                                         download_and_process_video(scraper.scraper, media_downloader, selected_profile_name, file, token_content)
+                                        downloaded_count += 1
                                 except Exception as e:
                                     print(f"[ERRO] Falha ao extrair token de vídeo ({file['mediaId']}): {e}")
                                     print(f"Resposta: {token_response}")
                         pbar.update(1)
-                        processed += 1
+                        downloaded_count += 1
 
             skip += 10
             if skip >= total:
                 break
+    
+    print(f"\n[RESUMO] Total de arquivos novos baixados: {downloaded_count}/{progress_total}")
