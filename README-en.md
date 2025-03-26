@@ -92,16 +92,5 @@ python main.py
 
 Contribute to the project by opening Issues or Pull Requests. If you want to contribute financially to the project, use the QRCodes below.
 
-<div>
-      <h4>BTC</h4>
-    <a href="https://raw.githubusercontent.com/justsadb000y/privacy-scraper/blob/main/donate/btc">
-  <img src="https://i.imgur.com/zg2TeIO.png" alt="drawing" style="height:100px"/>
-    </a>
-</div>
-
-<div>
-    <h4>ETH</h4>
-    <a href="https://raw.githubusercontent.com/justsadb000y/privacy-scraper/blob/main/donate/eth">
-  <img src="https://i.imgur.com/WBy1z58.png" alt="drawing" style="height:100px"/>
-    </a>
-</div>
+[BTC](https://raw.githubusercontent.com/justsadb000y/privacy-scraper/blob/main/donate/btc)
+[ETH](https://raw.githubusercontent.com/justsadb000y/privacy-scraper/blob/main/donate/eth)
