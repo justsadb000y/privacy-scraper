@@ -70,19 +70,37 @@ PASSWORD=suasenha123
 WORKERS=5
 ```
 
-### 3. Executar o script
+### 3. Instale o Chromium
+
+Execute o script de instalação:
+
+```bash
+python playwright install chromium
+```
+
+### 4. Executar o script
 
 Execute o script principal:
 
 ```bash
 python main.py
 ```
-
 ---
 
-## 📌 Observações
+## Suporte
 
-- Garanta que suas credenciais no arquivo `.env` estejam corretas.
-- Certifique-se de que possui autorização para baixar o conteúdo dos perfis selecionados.
+Contribua com o projeto abrindo Issues ou Pull Requests. Caso queira contribuir financeiramente com o projeto, use os QRCodes abaixo.
 
----
+<div>
+      <h4>BTC</h4>
+    <a href="https://raw.githubusercontent.com/justsadb000y/privacy-scraper/blob/main/donate/btc">
+  <img src="https://i.imgur.com/zg2TeIO.png" alt="drawing" style="height:100px"/>
+    </a>
+</div>
+
+<div>
+    <h4>ETH</h4>
+    <a href="https://raw.githubusercontent.com/justsadb000y/privacy-scraper/blob/main/donate/eth">
+  <img src="https://i.imgur.com/WBy1z58.png" alt="drawing" style="height:100px"/>
+    </a>
+</div>
