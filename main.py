@@ -3,8 +3,7 @@ from source.media import MediaDownloader, download_and_process_video, process_po
 import subprocess
 import sys
 import os
-import shutil
-import subprocess
+import inquirer
 
 DOWNLOAD_DIR = "downloads"
 
@@ -13,32 +12,38 @@ def main():
 
     if scraper.login():
         media_downloader = MediaDownloader(scraper.scraper)
-        profiles = scraper.get_profiles()
+        profiles = sorted(scraper.get_profiles(), key=lambda p: p.lower())
 
         if profiles:
-            print("Perfis disponíveis:\n")
-            for idx, name in enumerate(profiles):
-                print(f"{idx + 1}. {name}")
-
-            selected_input = input("\nDigite os números dos perfis desejados (separados por vírgula): ")
-            selected_indices = []
-            try:
-                selected_indices = [int(i.strip()) - 1 for i in selected_input.split(",") if i.strip().isdigit()]
-            except Exception as e:
-                print(f"Erro ao interpretar seleção: {e}")
-                return
-
-            selected_profiles = [profiles[i] for i in selected_indices if 0 <= i < len(profiles)]
+            profile_choices = [(p.lower(), p) for p in profiles]
+            questions = [
+                inquirer.Checkbox(
+                    'profiles',
+                    message="Selecione os perfis para baixar (use espaço para marcar):",
+                    choices=profile_choices,
+                )
+            ]
+            answers = inquirer.prompt(questions)
+            selected_profiles = answers.get('profiles', [])
 
             if not selected_profiles:
-                print("Nenhum perfil válido selecionado. Encerrando.")
+                print("Nenhum perfil selecionado. Encerrando.")
                 return
 
-            print("\nTipo de mídia:")
-            print("1. Fotos")
-            print("2. Vídeos")
-            print("3. Ambos")
-            media_type = input("Digite o número da opção desejada: ").strip()
+            media_question = [
+                inquirer.List(
+                    'media_type',
+                    message="Escolha o tipo de mídia para download",
+                    choices=[
+                        ("Fotos", "1"),
+                        ("Vídeos", "2"),
+                        ("Ambos", "3")
+                    ]
+                )
+            ]
+            media_type_answer = inquirer.prompt(media_question)
+            media_type = media_type_answer.get('media_type')
+
             if media_type not in ["1", "2", "3"]:
                 print("Tipo de mídia inválido. Encerrando.")
                 return

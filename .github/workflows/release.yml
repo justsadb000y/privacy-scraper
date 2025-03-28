@@ -25,7 +25,7 @@ jobs:
 
       - name: Build executable with PyInstaller
         run: |
-          pyinstaller --name=privacy_scraper main.py
+          pyinstaller --name=privacy_scraper --hidden-import=inquirer --hidden-import=readchar --copy-metadata readchar main.py
 
       - name: Install Playwright browsers
         run: |
@@ -42,7 +42,7 @@ jobs:
           }
 
           $sourceChromium = "$env:USERPROFILE\AppData\Local\ms-playwright"
-          $internalPath = "release\privacy_scraper\_internal\playwright-browsers"
+          $internalPath = "release\privacy_scraper\_internal\playwright\driver\package\.local-browsers"
 
           if (Test-Path $sourceChromium) {
             New-Item -ItemType Directory -Path $internalPath -Force
