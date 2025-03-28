@@ -164,7 +164,7 @@ class PrivacyScraper:
 
     def get_posts(self, profile_name, skip=0):
         unix_timestamp = int(time.time() * 1000)
-        url = f"https://privacy.com.br/Profile?handler=PartialPosts&skip={skip}&take=10&nomePerfil={profile_name}&filter=mosaico&_={unix_timestamp}"
+        url = f"https://privacy.com.br/Profile?handler=PartialPosts&skip={skip}&take=30&nomePerfil={profile_name}&filter=mosaico&_={unix_timestamp}"
         result = self.playwright_get(url)
         return json.loads(result)
 
