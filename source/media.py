@@ -67,7 +67,7 @@ class MediaDownloader:
             modified_content = []
 
             for line in lines:
-                if line.startswith('#EXT-X-KEY'):
+                if line.startswith('#EXT-X-SESSION-KEY') or line.startswith('#EXT-X-KEY'):
                     uri_match = re.search(r'URI="([^"]+)"', line)
                     if uri_match:
                         key_url = uri_match.group(1)
@@ -78,6 +78,7 @@ class MediaDownloader:
                         if self.download_file(key_url, key_path, tokenContent):
                             new_line = line.replace(uri_match.group(0), f'URI="{new_key_name}"')
                             modified_content.append(new_line)
+                            
                 elif line.strip() and not line.startswith('#'):
                     segment_url = urllib.parse.urljoin(m3u8_url, line.strip())
                     segment_filename = os.path.join(base_path, os.path.basename(segment_url))
@@ -226,11 +227,11 @@ def process_posts(scraper, media_downloader, selected_profile_name, media_type):
                                     if token_content:
                                         download_and_process_video(scraper.scraper, media_downloader, selected_profile_name, file, token_content)
                                         downloaded_count += 1
+                                        
                                 except Exception as e:
                                     print(f"[ERRO] Falha ao extrair token de vídeo ({file['mediaId']}): {e}")
                                     print(f"Resposta: {token_response}")
                         pbar.update(1)
-                        downloaded_count += 1
 
             skip += 10
             if skip >= total:
