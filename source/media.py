@@ -59,6 +59,7 @@ class MediaDownloader:
 
     def process_m3u8(self, m3u8_url, base_path, tokenContent):
         m3u8_filename = os.path.join(base_path, "playlist.m3u8")
+
         if self.download_file(m3u8_url, m3u8_filename, tokenContent):
             with open(m3u8_filename, 'r', encoding='utf-8') as f:
                 content = f.read()
@@ -71,14 +72,21 @@ class MediaDownloader:
                     uri_match = re.search(r'URI="([^"]+)"', line)
                     if uri_match:
                         key_url = uri_match.group(1)
-                        original_key_name = os.path.basename(urllib.parse.urlparse(key_url).path)
-                        new_key_name = f"{original_key_name}.ts"
+                        parsed = urllib.parse.urlparse(key_url)
+                        original_key_name = os.path.basename(parsed.path)
+
+                        new_key_name = f"{original_key_name}.key"
                         key_path = os.path.join(base_path, new_key_name)
 
-                        if self.download_file(key_url, key_path, tokenContent):
+                        if self.download_file(key_url, key_path, tokenContent) and os.path.exists(key_path):
                             new_line = line.replace(uri_match.group(0), f'URI="{new_key_name}"')
                             modified_content.append(new_line)
-                            
+                        else:
+                            print(f"[AVISO] Não foi possível baixar ou salvar a chave: {key_url}")
+                            modified_content.append(line)
+                    else:
+                        modified_content.append(line)
+
                 elif line.strip() and not line.startswith('#'):
                     segment_url = urllib.parse.urljoin(m3u8_url, line.strip())
                     segment_filename = os.path.join(base_path, os.path.basename(segment_url))
@@ -86,6 +94,7 @@ class MediaDownloader:
                     if self.download_file(segment_url, segment_filename, tokenContent):
                         modified_content.append(os.path.basename(segment_filename))
                     else:
+                        print(f"[ERRO] Falha ao baixar segmento: {segment_url}")
                         modified_content.append(line)
                 else:
                     modified_content.append(line)
@@ -94,6 +103,7 @@ class MediaDownloader:
                 f.write('\n'.join(modified_content))
 
             return m3u8_filename
+
         return None
 
     def convert_m3u8_to_mp4(self, input_file, output_file):
@@ -194,7 +204,8 @@ def process_posts(scraper, media_downloader, selected_profile_name, media_type):
                             filename = f"{DOWNLOAD_DIR}/{selected_profile_name}/fotos/{file['mediaId']}.jpg"
                             if not os.path.exists(filename):
                                 scraper.download_image(file_url, filename)
-                                downloaded_count += 1
+                                if os.path.exists(filename):
+                                    downloaded_count += 1
                             pbar.update(1)
 
                         elif file_type == "video" and media_type in ["2", "3"]:
@@ -225,13 +236,15 @@ def process_posts(scraper, media_downloader, selected_profile_name, media_type):
                                 try:
                                     token_content = json.loads(token_response).get("content")
                                     if token_content:
+                                        before = os.path.exists(output_filename)
                                         download_and_process_video(scraper.scraper, media_downloader, selected_profile_name, file, token_content)
-                                        downloaded_count += 1
-                                        
+                                        after = os.path.exists(output_filename)
+                                        if not before and after:
+                                            downloaded_count += 1
                                 except Exception as e:
                                     print(f"[ERRO] Falha ao extrair token de vídeo ({file['mediaId']}): {e}")
                                     print(f"Resposta: {token_response}")
-                        pbar.update(1)
+                            pbar.update(1)
 
             skip += 30
             if skip >= total:
