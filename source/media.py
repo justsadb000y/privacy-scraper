@@ -5,13 +5,16 @@ import chardet
 import ffmpeg
 import shutil
 import json
+from datetime import datetime
 from tqdm import tqdm
+from source.scraper import log_debug
 
 DOWNLOAD_DIR = "downloads"
 
 class MediaDownloader:
     def __init__(self, scraper):
         self.scraper = scraper
+        log_debug("MediaDownloader instanciado")
 
     def download_file(self, url, filename, tokenContent, pbar=None):
         uri = url.split("hls/", 1)[-1]
@@ -23,20 +26,22 @@ class MediaDownloader:
 
         try:
             os.makedirs(os.path.dirname(filename), exist_ok=True)
+            log_debug(f"Iniciando download de {url} para {filename}")
             response = self.scraper.get(url, headers=headers, stream=True)
             if response.status_code == 200:
                 with open(filename, 'wb') as f:
                     for chunk in response.iter_content(chunk_size=8192):
                         if chunk:
                             f.write(chunk)
+                log_debug(f"Download concluído: {filename}")
                 if pbar:
                     pbar.update(1)
                 return True
             else:
-                print(f"[ERRO] Falha ao baixar {url}: Status {response.status_code}")
+                log_debug(f"[ERRO] Falha ao baixar {url}: Status {response.status_code}")
                 return False
         except Exception as e:
-            print(f"[ERRO] Falha ao baixar {url}: {e}")
+            log_debug(f"[ERRO] Falha ao baixar {url}: {e}")
             return False
 
     def get_best_quality_m3u8(self, main_m3u8_url, main_m3u8_content):
@@ -55,10 +60,12 @@ class MediaDownloader:
                     max_bandwidth = current_bandwidth
                     best_quality_url = urllib.parse.urljoin(main_m3u8_url, line.strip())
 
+        log_debug(f"Melhor qualidade m3u8 selecionada: {best_quality_url}")
         return best_quality_url
 
     def process_m3u8(self, m3u8_url, base_path, tokenContent):
         m3u8_filename = os.path.join(base_path, "playlist.m3u8")
+        log_debug(f"Processando M3U8: {m3u8_url}")
 
         if self.download_file(m3u8_url, m3u8_filename, tokenContent):
             with open(m3u8_filename, 'r', encoding='utf-8') as f:
@@ -82,11 +89,10 @@ class MediaDownloader:
                             new_line = line.replace(uri_match.group(0), f'URI="{new_key_name}"')
                             modified_content.append(new_line)
                         else:
-                            print(f"[AVISO] Não foi possível baixar ou salvar a chave: {key_url}")
+                            log_debug(f"[AVISO] Não foi possível baixar ou salvar a chave: {key_url}")
                             modified_content.append(line)
                     else:
                         modified_content.append(line)
-
                 elif line.strip() and not line.startswith('#'):
                     segment_url = urllib.parse.urljoin(m3u8_url, line.strip())
                     segment_filename = os.path.join(base_path, os.path.basename(segment_url))
@@ -94,7 +100,7 @@ class MediaDownloader:
                     if self.download_file(segment_url, segment_filename, tokenContent):
                         modified_content.append(os.path.basename(segment_filename))
                     else:
-                        print(f"[ERRO] Falha ao baixar segmento: {segment_url}")
+                        log_debug(f"[ERRO] Falha ao baixar segmento: {segment_url}")
                         modified_content.append(line)
                 else:
                     modified_content.append(line)
@@ -103,7 +109,6 @@ class MediaDownloader:
                 f.write('\n'.join(modified_content))
 
             return m3u8_filename
-
         return None
 
     def convert_m3u8_to_mp4(self, input_file, output_file):
@@ -120,9 +125,10 @@ class MediaDownloader:
                     acodec='copy',
                     loglevel='error'
                 ).overwrite_output().run()
+                log_debug(f"Conversão rápida concluída: {output_file}")
                 return True
             except ffmpeg.Error:
-                print("[WARN] Conversão rápida falhou, tentando reencode...")
+                log_debug("[WARN] Conversão rápida falhou, tentando reencode...")
 
                 ffmpeg.input(input_file, allowed_extensions='ALL').output(
                     output_file,
@@ -132,20 +138,29 @@ class MediaDownloader:
                     crf=23,
                     loglevel='error'
                 ).overwrite_output().run()
+                log_debug(f"Reencode concluído: {output_file}")
                 return True
         except Exception as e:
-            print(f"[ERRO] Falha na conversão do vídeo: {e}")
+            log_debug(f"[ERRO] Falha na conversão do vídeo: {e}")
             return False
 
     def clean_temp_files(self, base_path):
         try:
             shutil.rmtree(base_path)
+            log_debug(f"Pasta temporária removida: {base_path}")
         except Exception as e:
-            print(f"[ERRO] Falha ao remover arquivos temporários: {e}")
+            log_debug(f"[ERRO] Falha ao remover arquivos temporários: {e}")
 
-
-def download_and_process_video(scraper, media_downloader, profile_name, file, token_content):
+def download_and_process_video(scraper, media_downloader, profile_name, file, token_content, output_filename=None):
     base_path = os.path.join(DOWNLOAD_DIR, profile_name, "videos", f"{file['mediaId']}_temp")
+
+    if output_filename is None:
+        output_filename = os.path.join(DOWNLOAD_DIR, profile_name, "videos", f"{file['mediaId']}.mp4")
+
+    if ".mp4" in file["url"].lower():
+        success = scraper.download_video_mp4_direct(file["url"], output_filename, token_content)
+        return success
+
     os.makedirs(base_path, exist_ok=True)
     main_m3u8_filename = os.path.join(base_path, "main.m3u8")
 
@@ -160,26 +175,23 @@ def download_and_process_video(scraper, media_downloader, profile_name, file, to
         if best_quality_url:
             best_m3u8_filename = media_downloader.process_m3u8(best_quality_url, base_path, token_content)
             if best_m3u8_filename and os.path.exists(best_m3u8_filename):
-                output_filename = os.path.join(DOWNLOAD_DIR, profile_name, "videos", f"{file['mediaId']}.mp4")
                 success = media_downloader.convert_m3u8_to_mp4(best_m3u8_filename, output_filename)
                 if not success:
-                    print(f"[ERRO] Falha na conversão para vídeo {file['mediaId']}")
+                    log_debug(f"[ERRO] Falha na conversão para vídeo {file['mediaId']}")
     else:
-        print(f"[ERRO] Falha ao baixar o M3U8 para o vídeo {file['mediaId']}")
+        log_debug(f"[ERRO] Falha ao baixar o M3U8 para o vídeo {file['mediaId']}")
 
     media_downloader.clean_temp_files(base_path)
 
-
 def process_posts(scraper, media_downloader, selected_profile_name, media_type):
+    from tqdm import tqdm
     total, total_photos, total_videos = scraper.get_total_media_count(selected_profile_name)
     print(f"Total de mídias: {total} (Fotos: {total_photos}, Vídeos: {total_videos})")
 
     os.makedirs(f"{DOWNLOAD_DIR}/{selected_profile_name}/fotos", exist_ok=True)
     os.makedirs(f"{DOWNLOAD_DIR}/{selected_profile_name}/videos", exist_ok=True)
 
-    skip = 0
     downloaded_count = 0
-
     progress_total = {
         "1": total_photos,
         "2": total_videos,
@@ -187,7 +199,6 @@ def process_posts(scraper, media_downloader, selected_profile_name, media_type):
     }.get(media_type, total)
 
     skip = 0
-
     with tqdm(total=progress_total, desc=f"Baixando mídias de {selected_profile_name}", unit="mídia") as pbar:
         while True:
             posts = scraper.get_posts(selected_profile_name, skip=skip)
@@ -195,13 +206,22 @@ def process_posts(scraper, media_downloader, selected_profile_name, media_type):
                 break
 
             for item in posts["mosaicItems"]:
+                post_date_raw = item.get("postDate")
+                try:
+                    post_date = datetime.strptime(post_date_raw, "%d/%m/%Y %H:%M:%S")
+                    formatted_date = post_date.strftime("%Y-%m-%d_%H-%M-%S")
+                except Exception as e:
+                    log_debug(f"[AVISO] Não foi possível interpretar a data '{post_date_raw}': {e}")
+                    formatted_date = "unknown-date"
+
                 for file in item.get("files", []):
                     if not file["isLocked"]:
                         file_type = file["type"]
                         file_url = file["url"]
+                        media_id = file["mediaId"]
 
                         if file_type == "image" and media_type in ["1", "3"]:
-                            filename = f"{DOWNLOAD_DIR}/{selected_profile_name}/fotos/{file['mediaId']}.jpg"
+                            filename = f"{DOWNLOAD_DIR}/{selected_profile_name}/fotos/{formatted_date}_{media_id}.jpg"
                             if not os.path.exists(filename):
                                 scraper.download_image(file_url, filename)
                                 if os.path.exists(filename):
@@ -209,9 +229,18 @@ def process_posts(scraper, media_downloader, selected_profile_name, media_type):
                             pbar.update(1)
 
                         elif file_type == "video" and media_type in ["2", "3"]:
-                            output_filename = f"{DOWNLOAD_DIR}/{selected_profile_name}/videos/{file['mediaId']}.mp4"
+                            output_filename = f"{DOWNLOAD_DIR}/{selected_profile_name}/videos/{formatted_date}_{media_id}.mp4"
+                            temp_path = f"{DOWNLOAD_DIR}/{selected_profile_name}/videos/{media_id}_temp"
+
+                            if os.path.exists(temp_path):
+                                try:
+                                    shutil.rmtree(temp_path)
+                                    log_debug(f"[INFO] Pasta temporária removida: {temp_path}")
+                                except Exception as e:
+                                    log_debug(f"[ERRO] Não foi possível remover pasta temporária {temp_path}: {e}")
+
                             if not os.path.exists(output_filename):
-                                file_id = file["url"].split("/hls/")[0].split("/")[-1]
+                                file_id = file_url.split("/hls/")[0].split("/")[-1]
                                 payload = {'exp': 3600, 'file_id': file_id}
                                 token_url = "https://service.privacy.com.br/media/video/token"
                                 headers = {
@@ -237,17 +266,17 @@ def process_posts(scraper, media_downloader, selected_profile_name, media_type):
                                     token_content = json.loads(token_response).get("content")
                                     if token_content:
                                         before = os.path.exists(output_filename)
-                                        download_and_process_video(scraper.scraper, media_downloader, selected_profile_name, file, token_content)
+                                        success = download_and_process_video(scraper, media_downloader, selected_profile_name, file, token_content, output_filename=output_filename)
                                         after = os.path.exists(output_filename)
-                                        if not before and after:
+                                        if not before and after and success:
                                             downloaded_count += 1
                                 except Exception as e:
-                                    print(f"[ERRO] Falha ao extrair token de vídeo ({file['mediaId']}): {e}")
-                                    print(f"Resposta: {token_response}")
+                                    log_debug(f"[ERRO] Falha ao extrair token de vídeo ({file['mediaId']}): {e}")
+                                    log_debug(f"Resposta: {token_response}")
                             pbar.update(1)
 
             skip += 30
             if skip >= total:
                 break
-    
+
     print(f"\n[RESUMO] Total de arquivos novos baixados: {downloaded_count}/{progress_total}")

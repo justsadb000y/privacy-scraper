@@ -1,9 +1,7 @@
 from source.scraper import PrivacyScraper
 from source.media import MediaDownloader, download_and_process_video, process_posts
-import subprocess
-import sys
-import os
 import inquirer
+import os
 
 DOWNLOAD_DIR = "downloads"
 

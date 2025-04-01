@@ -8,48 +8,48 @@ import cloudscraper
 from bs4 import BeautifulSoup
 from playwright.sync_api import sync_playwright
 from dotenv import load_dotenv
+import logging
 
 load_dotenv()
 
+DEBUG = os.getenv("DEBUG", "False").lower() == "true"
+LOG_FILE = "debug.log"
+
+if DEBUG:
+    logging.basicConfig(filename=LOG_FILE, level=logging.DEBUG, format='[%(levelname)s] %(message)s')
+
+def log_debug(msg):
+    if DEBUG:
+        print(f"[DEBUG] {msg}")
+        logging.debug(msg)
+
 def strip_edits_from_image_url(image_url):
-    match = re.search(r"https:\/\/[^\/]+\/([^\/\?]+)", image_url)
+    match = re.search(r"https:\/\/[^\/]+\/([^\/?]+)", image_url)
     if not match:
         return image_url
 
     token = match.group(1)
-
     padding = '=' * ((4 - len(token) % 4) % 4)
     token_bytes = base64.urlsafe_b64decode(token + padding)
     token_json = json.loads(token_bytes)
-
     token_json['edits'] = {}
-
-    cleaned_token = base64.urlsafe_b64encode(
-        json.dumps(token_json).encode()
-    ).decode().rstrip("=")
-
+    cleaned_token = base64.urlsafe_b64encode(json.dumps(token_json).encode()).decode().rstrip("=")
     new_url = image_url.replace(token, cleaned_token)
-
     return new_url
 
 def get_embedded_chromium_path():
     playwright_path = os.path.expanduser("~/.cache/ms-playwright") if os.name != 'nt' else os.path.join(os.environ['USERPROFILE'], 'AppData', 'Local', 'ms-playwright')
     if os.path.exists(playwright_path):
         return
-
     base = os.path.dirname(os.path.abspath(__file__))
     browser_root = os.path.join(base, "..", "playwright-browsers")
-
     if not os.path.exists(browser_root):
         raise FileNotFoundError(f"Playwright browser directory not found at {browser_root}")
-
     chromium_dirs = [d for d in os.listdir(browser_root) if d.startswith("chromium-")]
     if not chromium_dirs:
         raise FileNotFoundError("No Chromium installation found in playwright-browsers.")
-
-    chromium_dir = chromium_dirs[0]  # usa o primeiro encontrado
+    chromium_dir = chromium_dirs[0]
     chromium_path = os.path.join(browser_root, chromium_dir)
-
     system = platform.system()
     if system == "Windows":
         return os.path.join(chromium_path, "chrome-win", "chrome.exe")
@@ -67,26 +67,25 @@ class PrivacyScraper:
         self.page = None
         self.playwright = None
         self.scraper = cloudscraper.create_scraper()
+        log_debug("PrivacyScraper instanciado")
 
     def login(self):
+        log_debug("Iniciando login...")
         self.playwright = sync_playwright().start()
         path = get_embedded_chromium_path()
         self.browser = self.playwright.chromium.launch(headless=False, executable_path=path)
         self.context = self.browser.new_context()
         self.page = self.context.new_page()
-
-        print("Acessando a página inicial...")
+        log_debug("Navegador iniciado")
         self.page.goto("https://privacy.com.br")
         time.sleep(3)
+        log_debug("Página inicial carregada")
 
-        print("Enviando login via fetch JS na página...")
         result = self.page.evaluate(f"""
             async () => {{
                 const response = await fetch("https://service.privacy.com.br/auth/login", {{
                     method: "POST",
-                    headers: {{
-                        "Content-Type": "application/json"
-                    }},
+                    headers: {{ "Content-Type": "application/json" }},
                     body: JSON.stringify({{
                         Email: "{self.email}",
                         Password: "{self.password}",
@@ -103,18 +102,19 @@ class PrivacyScraper:
             tokens = json.loads(result)
             self.token_v1 = tokens.get("tokenV1")
             self.token_v2 = tokens.get("token")
+            log_debug("Tokens extraídos com sucesso")
         except Exception as e:
-            print("Erro ao extrair tokens:", str(e))
+            log_debug(f"Erro ao extrair tokens: {str(e)}")
             self.browser.close()
             self.playwright.stop()
             return False
 
         if self.token_v1 and self.token_v2:
-            print("Login bem-sucedido.")
+            log_debug("Login bem-sucedido")
             self.authorize_tokens()
             return True
         else:
-            print(f"Erro no login: tokens ausentes. {result}")
+            log_debug(f"Erro no login: tokens ausentes. {result}")
             self.browser.close()
             self.playwright.stop()
             return False
@@ -122,6 +122,7 @@ class PrivacyScraper:
     def authorize_tokens(self):
         url = f"https://privacy.com.br/strangler/Authorize?TokenV1={self.token_v1}&TokenV2={self.token_v2}"
         self.playwright_get(url)
+        log_debug("Tokens autorizados")
 
     def playwright_get(self, url, extra_headers: dict = None):
         headers = {
@@ -129,6 +130,7 @@ class PrivacyScraper:
             "Referer": "https://privacy.com.br/",
             **(extra_headers or {})
         }
+        log_debug(f"GET para: {url}")
         return self.page.evaluate(f"""
             async () => {{
                 const response = await fetch("{url}", {{
@@ -140,12 +142,15 @@ class PrivacyScraper:
         """)
 
     def get_profiles(self):
+        log_debug("Obtendo perfis...")
         url = "https://service.privacy.com.br/profile/UserFollowing?page=0&limit=30&nickName="
         result = self.playwright_get(url)
         profiles = json.loads(result)
+        log_debug(f"Perfis obtidos: {[p['profileName'] for p in profiles]}")
         return [profile["profileName"] for profile in profiles]
 
     def get_total_media_count(self, profile_name):
+        log_debug(f"Obtendo contagem de mídias para {profile_name}")
         url = f"https://privacy.com.br/profile/{profile_name}/Mosaico"
         result = self.playwright_get(url)
         soup = BeautifulSoup(result, 'html.parser')
@@ -159,12 +164,13 @@ class PrivacyScraper:
         total = parse_number(total_match.text if total_match else None)
         photos = parse_number(photos_match.text if photos_match else None)
         videos = parse_number(videos_match.text if videos_match else None)
-
+        log_debug(f"Contagens - Total: {total}, Fotos: {photos}, Vídeos: {videos}")
         return total, photos, videos
 
     def get_posts(self, profile_name, skip=0):
         unix_timestamp = int(time.time() * 1000)
         url = f"https://privacy.com.br/Profile?handler=PartialPosts&skip={skip}&take=30&nomePerfil={profile_name}&filter=mosaico&_={unix_timestamp}"
+        log_debug(f"Buscando posts para {profile_name}, skip={skip}")
         result = self.playwright_get(url)
         return json.loads(result)
 
@@ -175,14 +181,38 @@ class PrivacyScraper:
         try:
             response = self.scraper.get(clean_url, headers=headers, stream=True)
             if response.status_code == 200:
+                os.makedirs(os.path.dirname(filename), exist_ok=True)
                 with open(filename, 'wb') as f:
                     for chunk in response.iter_content(1024):
                         f.write(chunk)
+                log_debug(f"Imagem salva: {filename}")
         except Exception as e:
-            print(f"Erro ao baixar imagem {url}: {e}")
+            log_debug(f"Erro ao baixar imagem {url}: {e}")
+
+    def download_video_mp4_direct(self, url, filename, token_content):
+        log_debug(f"Detectado link direto para MP4: {url}")
+        headers = {
+            "referer": "https://privacy.com.br/",
+            "Content": token_content
+        }
+        try:
+            os.makedirs(os.path.dirname(filename), exist_ok=True)
+            response = self.scraper.get(url, headers=headers, stream=True)
+            if response.status_code == 200:
+                with open(filename, 'wb') as f:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        f.write(chunk)
+                log_debug(f"Download direto concluído: {filename}")
+                return True
+            else:
+                log_debug(f"[ERRO] Status {response.status_code} ao baixar mp4 direto: {url}")
+        except Exception as e:
+            log_debug(f"[ERRO] Exceção ao baixar mp4 direto: {e}")
+        return False
 
     def close(self):
         if self.browser:
             self.browser.close()
         if self.playwright:
             self.playwright.stop()
+        log_debug("Browser fechado")
