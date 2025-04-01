@@ -174,20 +174,43 @@ class PrivacyScraper:
         result = self.playwright_get(url)
         return json.loads(result)
 
-    def download_image(self, url, filename):
-        headers = {"referer": "https://privacy.com.br/" }
-        clean_url = strip_edits_from_image_url(url)
-
+    def download_image_safe(self, url, filename):
         try:
-            response = self.scraper.get(clean_url, headers=headers, stream=True)
-            if response.status_code == 200:
-                os.makedirs(os.path.dirname(filename), exist_ok=True)
-                with open(filename, 'wb') as f:
-                    for chunk in response.iter_content(1024):
-                        f.write(chunk)
-                log_debug(f"Imagem salva: {filename}")
+            decoded = base64.urlsafe_b64decode(url.split('/')[-1] + '==')
+            data = json.loads(decoded)
+            
+            # Remove edições pesadas e ajusta altura
+            if "bucket" in data:
+                del data["bucket"]
+            if "overlayWith" in data.get("edits", {}):
+                del data["edits"]["overlayWith"]
+            if "fit" in data.get("edits", {}).get("resize", {}):
+                del data["edits"]["resize"]["fit"]
+            data["edits"]["resize"]["width"] = None
+
+            for height in [4032, 2500, 1600]:
+                data["edits"]["resize"]["height"] = height
+                encoded_url = base64.urlsafe_b64encode(json.dumps(data).encode()).decode().rstrip('=')
+                final_url = f"https://image.privacy.com.br/{encoded_url}"
+                headers = {"referer": "https://privacy.com.br/"}
+                
+                response = self.scraper.get(final_url, headers=headers, stream=True)
+                if response.status_code == 200:
+                    os.makedirs(os.path.dirname(filename), exist_ok=True)
+                    with open(filename, 'wb') as f:
+                        for chunk in response.iter_content(chunk_size=8192):
+                            f.write(chunk)
+                    log_debug(f"[SAFE] Imagem salva: {filename}")
+                    return True
+                elif response.status_code == 413:
+                    log_debug(f"[SAFE] Erro 413 com altura {height}, tentando menor...")
+                else:
+                    log_debug(f"[SAFE] Erro {response.status_code} ao baixar: {final_url}")
+                    break
         except Exception as e:
-            log_debug(f"Erro ao baixar imagem {url}: {e}")
+            log_debug(f"[SAFE] Erro ao baixar imagem com fallback: {e}")
+        return False
+
 
     def download_video_mp4_direct(self, url, filename, token_content):
         log_debug(f"Detectado link direto para MP4: {url}")

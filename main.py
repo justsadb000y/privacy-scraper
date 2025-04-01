@@ -17,7 +17,7 @@ def main():
             questions = [
                 inquirer.Checkbox(
                     'profiles',
-                    message="Selecione os perfis para baixar (use espaço para marcar):",
+                    message="Selecione os perfis para baixar (use espaço para marcar)",
                     choices=profile_choices,
                 )
             ]

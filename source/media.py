@@ -34,8 +34,10 @@ class MediaDownloader:
                         if chunk:
                             f.write(chunk)
                 log_debug(f"Download concluído: {filename}")
+
                 if pbar:
                     pbar.update(1)
+                    
                 return True
             else:
                 log_debug(f"[ERRO] Falha ao baixar {url}: Status {response.status_code}")
@@ -223,7 +225,7 @@ def process_posts(scraper, media_downloader, selected_profile_name, media_type):
                         if file_type == "image" and media_type in ["1", "3"]:
                             filename = f"{DOWNLOAD_DIR}/{selected_profile_name}/fotos/{formatted_date}_{media_id}.jpg"
                             if not os.path.exists(filename):
-                                scraper.download_image(file_url, filename)
+                                scraper.download_image_safe(file_url, filename)
                                 if os.path.exists(filename):
                                     downloaded_count += 1
                             pbar.update(1)
