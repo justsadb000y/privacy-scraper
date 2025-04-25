@@ -46,6 +46,47 @@ class MediaDownloader:
             log_debug(f"[ERRO] Falha ao baixar {url}: {e}")
             return False
 
+    def download_key_file(self, url, filename, tokenContent, pbar=None):
+        parsed_url = urllib.parse.urlparse(url)
+        uri = os.path.basename(parsed_url.path)
+
+        headers = {
+            "Content": tokenContent,
+            "X-Content-Uri": uri,
+            "referer": "https://privacy.com.br/",
+            "origin": "https://privacy.com.br",
+            "priority": "u=1, i",
+            "accept": "*/*",
+            "accept-language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
+            "sec-fetch-dest": "empty",
+            "sec-fetch-mode": "cors",
+            "sec-fetch-site": "same-site",
+            "sec-ch-ua": '"Google Chrome";v="135", "Not-A.Brand";v="8", "Chromium";v="135"',
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": '"Windows"',
+        }
+
+        try:
+            os.makedirs(os.path.dirname(filename), exist_ok=True)
+            log_debug(f"[KEY] Iniciando download de {url} para {filename}")
+            response = self.scraper.get(url, headers=headers, stream=True)
+            if response.status_code == 200:
+                with open(filename, 'wb') as f:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        if chunk:
+                            f.write(chunk)
+                log_debug(f"[KEY] Download concluído: {filename}")
+                if pbar:
+                    pbar.update(1)
+                return True
+            else:
+                log_debug(f"[KEY] Falha ao baixar {url} — Status {response.status_code}")
+                return False
+        except Exception as e:
+            log_debug(f"[KEY] Erro ao baixar key {url}: {e}")
+            return False
+
     def get_best_quality_m3u8(self, main_m3u8_url, main_m3u8_content):
         lines = main_m3u8_content.split('\n')
         best_quality_url = None
@@ -83,15 +124,13 @@ class MediaDownloader:
                         key_url = uri_match.group(1)
                         parsed = urllib.parse.urlparse(key_url)
                         original_key_name = os.path.basename(parsed.path)
-
                         new_key_name = f"{original_key_name}.key"
                         key_path = os.path.join(base_path, new_key_name)
-
-                        if self.download_file(key_url, key_path, tokenContent) and os.path.exists(key_path):
+                        if self.download_key_file(key_url, key_path, tokenContent) and os.path.exists(key_path):
                             new_line = line.replace(uri_match.group(0), f'URI="{new_key_name}"')
                             modified_content.append(new_line)
                         else:
-                            log_debug(f"[AVISO] Não foi possível baixar ou salvar a chave: {key_url}")
+                            print(f"[AVISO] Não foi possível baixar ou salvar a chave: {key_url}")
                             modified_content.append(line)
                     else:
                         modified_content.append(line)
@@ -247,6 +286,18 @@ def process_posts(scraper, media_downloader, selected_profile_name, media_type):
                                 token_url = "https://service.privacy.com.br/media/video/token"
                                 headers = {
                                     "Content-Type": "application/json",
+                                    "referer": "https://privacy.com.br/",
+                                    "origin": "https://privacy.com.br",
+                                    "priority": "u=1, i",
+                                    "accept": "*/*",
+                                    "accept-language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+                                    "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
+                                    "sec-fetch-dest": "empty",
+                                    "sec-fetch-mode": "cors",
+                                    "sec-fetch-site": "same-site",
+                                    "sec-ch-ua": '"Google Chrome";v="135", "Not-A.Brand";v="8", "Chromium";v="135"',
+                                    "sec-ch-ua-mobile": "?0",
+                                    "sec-ch-ua-platform": '"Windows"',
                                     "Authorization": f"Bearer {scraper.token_v2}"
                                 }
 

@@ -13,7 +13,7 @@ def main():
         profiles = sorted(scraper.get_profiles(), key=lambda p: p.lower())
 
         if profiles:
-            profile_choices = [(p.lower(), p) for p in profiles]
+            profile_choices = [("[SELECIONAR TODOS]", "__ALL__")] + [(p.lower(), p) for p in profiles]
             questions = [
                 inquirer.Checkbox(
                     'profiles',
@@ -24,6 +24,9 @@ def main():
             answers = inquirer.prompt(questions)
             selected_profiles = answers.get('profiles', [])
 
+            if "__ALL__" in selected_profiles:
+                selected_profiles = profiles
+
             if not selected_profiles:
                 print("Nenhum perfil selecionado. Encerrando.")
                 return
@@ -33,9 +36,9 @@ def main():
                     'media_type',
                     message="Escolha o tipo de mídia para download",
                     choices=[
+                        ("Todos", "3"),
                         ("Fotos", "1"),
-                        ("Vídeos", "2"),
-                        ("Ambos", "3")
+                        ("Vídeos", "2")
                     ]
                 )
             ]

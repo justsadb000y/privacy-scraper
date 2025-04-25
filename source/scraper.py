@@ -159,7 +159,7 @@ class PrivacyScraper:
         videos_match = soup.find('a', href=f"/profile/{profile_name}/Videos")
 
         def parse_number(text):
-            return int(text.split()[0].replace('.', '')) if text else 0
+            return int(text.split()[0].replace('.', '').replace(',', '')) if text else 0
 
         total = parse_number(total_match.text if total_match else None)
         photos = parse_number(photos_match.text if photos_match else None)
