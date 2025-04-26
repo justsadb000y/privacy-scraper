@@ -15,6 +15,21 @@ load_dotenv()
 DEBUG = os.getenv("DEBUG", "False").lower() == "true"
 LOG_FILE = "debug.log"
 
+custom_headers = {
+    "referer": "https://privacy.com.br/",
+    "origin": "https://privacy.com.br",
+    "priority": "u=1, i",
+    "accept": "*/*",
+    "accept-language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+    "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
+    "sec-fetch-dest": "empty",
+    "sec-fetch-mode": "cors",
+    "sec-fetch-site": "same-site",
+    "sec-ch-ua": '"Google Chrome";v="135", "Not-A.Brand";v="8", "Chromium";v="135"',
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": '"Windows"',
+}
+
 if DEBUG:
     logging.basicConfig(filename=LOG_FILE, level=logging.DEBUG, format='[%(levelname)s] %(message)s')
 
@@ -97,6 +112,7 @@ class PrivacyScraper:
                 return await response.text();
             }}
         """)
+        print(result)
 
         try:
             tokens = json.loads(result)
@@ -144,7 +160,7 @@ class PrivacyScraper:
     def get_profiles(self):
         log_debug("Obtendo perfis...")
         url = "https://service.privacy.com.br/profile/UserFollowing?page=0&limit=30&nickName="
-        result = self.playwright_get(url)
+        result = self.playwright_get(url, custom_headers)
         profiles = json.loads(result)
         log_debug(f"Perfis obtidos: {[p['profileName'] for p in profiles]}")
         return [profile["profileName"] for profile in profiles]
@@ -152,7 +168,7 @@ class PrivacyScraper:
     def get_total_media_count(self, profile_name):
         log_debug(f"Obtendo contagem de mídias para {profile_name}")
         url = f"https://privacy.com.br/profile/{profile_name}/Mosaico"
-        result = self.playwright_get(url)
+        result = self.playwright_get(url, custom_headers)
         soup = BeautifulSoup(result, 'html.parser')
         total_match = soup.find('a', class_='filter-button selected')
         photos_match = soup.find('a', href=f"/profile/{profile_name}/Fotos")
@@ -169,44 +185,39 @@ class PrivacyScraper:
 
     def get_posts(self, profile_name, skip=0):
         unix_timestamp = int(time.time() * 1000)
-        url = f"https://privacy.com.br/Profile?handler=PartialPosts&skip={skip}&take=30&nomePerfil={profile_name}&filter=mosaico&_={unix_timestamp}"
+        url = f"https://privacy.com.br/Profile?handler=PartialPosts&skip={skip}&take=50&nomePerfil={profile_name}&filter=mosaico&_={unix_timestamp}"
         log_debug(f"Buscando posts para {profile_name}, skip={skip}")
         result = self.playwright_get(url)
         return json.loads(result)
 
     def download_image_safe(self, url, filename):
         try:
-            decoded = base64.urlsafe_b64decode(url.split('/')[-1] + '==')
-            data = json.loads(decoded)
+            headers = {
+                "referer": "https://privacy.com.br/",
+                "origin": "https://privacy.com.br",
+                "priority": "u=1, i",
+                "accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+                "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
+                "sec-fetch-dest": "image",
+                "sec-fetch-mode": "no-cors",
+                "sec-fetch-site": "same-site",
+                "sec-ch-ua": '"Google Chrome";v="135", "Not-A.Brand";v="8", "Chromium";v="135"',
+                "sec-ch-ua-mobile": "?0",
+                "sec-ch-ua-platform": '"Windows"',
+            }
             
-            # Remove edições pesadas e ajusta altura
-            if "bucket" in data:
-                del data["bucket"]
-            if "overlayWith" in data.get("edits", {}):
-                del data["edits"]["overlayWith"]
-            if "fit" in data.get("edits", {}).get("resize", {}):
-                del data["edits"]["resize"]["fit"]
-            data["edits"]["resize"]["width"] = None
-
-            for height in [4032, 2500, 1600]:
-                data["edits"]["resize"]["height"] = height
-                encoded_url = base64.urlsafe_b64encode(json.dumps(data).encode()).decode().rstrip('=')
-                final_url = f"https://image.privacy.com.br/{encoded_url}"
-                headers = {"referer": "https://privacy.com.br/"}
-                
-                response = self.scraper.get(final_url, headers=headers, stream=True)
-                if response.status_code == 200:
-                    os.makedirs(os.path.dirname(filename), exist_ok=True)
-                    with open(filename, 'wb') as f:
-                        for chunk in response.iter_content(chunk_size=8192):
-                            f.write(chunk)
-                    log_debug(f"[SAFE] Imagem salva: {filename}")
-                    return True
-                elif response.status_code == 413:
-                    log_debug(f"[SAFE] Erro 413 com altura {height}, tentando menor...")
-                else:
-                    log_debug(f"[SAFE] Erro {response.status_code} ao baixar: {final_url}")
-                    break
+            response = self.scraper.get(url, headers=headers, stream=True)
+            if response.status_code == 200:
+                os.makedirs(os.path.dirname(filename), exist_ok=True)
+                with open(filename, 'wb') as f:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        f.write(chunk)
+                log_debug(f"[SAFE] Imagem salva: {filename}")
+                return True
+            elif response.status_code == 413:
+                log_debug(f"[SAFE] Erro 413 com altura {height}, tentando menor...")
+            else:
+                log_debug(f"[SAFE] Erro {response.status_code} ao baixar: {final_url}")
         except Exception as e:
             log_debug(f"[SAFE] Erro ao baixar imagem com fallback: {e}")
         return False

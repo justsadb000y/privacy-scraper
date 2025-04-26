@@ -328,7 +328,7 @@ def process_posts(scraper, media_downloader, selected_profile_name, media_type):
                                     log_debug(f"Resposta: {token_response}")
                             pbar.update(1)
 
-            skip += 30
+            skip += 50
             if skip >= total:
                 break
 
